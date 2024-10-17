@@ -1,0 +1,58 @@
+3 .Write a program in C++ to count the words in a file and sort it in descending order of frequency of words i.e. highest occurring word must come first and least occurring word must come last.Write a program in C++ to count the words in a file and sort it in descending order of frequency of words i.e. highest occurring word must come first and least occurring word must come last.
+
+#include <iostream>
+#include <fstream>
+#include <map>
+#include <vector>
+#include <algorithm>
+#include <sstream>
+
+using namespace std;
+
+// Function to convert a string to lowercase
+string toLowercase(string str) {
+    transform(str.begin(), str.end(), str.begin(), ::tolower);
+    return str;
+}
+
+int main() {
+    string filename = "input.txt"; // Change this to the path of your input file
+
+    ifstream inputFile(filename);
+    if (!inputFile.is_open()) {
+        cerr << "Error opening file: " << filename << endl;
+        return 1;
+    }
+
+    map<string, int> wordCount;
+    string word;
+
+    // Read each word from the file
+    while (inputFile >> word) {
+        // Convert the word to lowercase
+        word = toLowercase(word);
+
+        // Remove punctuation marks
+        word.erase(remove_if(word.begin(), word.end(), ::ispunct), word.end());
+
+        // Increment the count for the word
+        wordCount[word]++;
+    }
+
+    // Create a vector of pairs for sorting
+    vector<pair<string, int>> wordVector(wordCount.begin(), wordCount.end());
+
+    // Sort the vector in descending order of word frequency
+    sort(wordVector.begin(), wordVector.end(),
+         [](const pair<string, int>& a, const pair<string, int>& b) {
+             return a.second > b.second;
+         });
+
+    // Print the sorted word frequencies
+    cout << "Word frequencies in descending order:\n";
+    for (const auto& entry : wordVector) {
+        cout << entry.first << ": " << entry.second << " times\n";
+    }
+
+    return 0;
+}

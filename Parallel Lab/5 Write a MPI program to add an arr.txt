@@ -1,0 +1,82 @@
+5// Write a MPI program to add an array of size N using two processes . Print the result in the root process. Investigate the amount of time taken by each process.
+
+
+#include <iostream>
+#include <mpi.h>
+#include <cstdlib>
+#include <ctime>
+
+using namespace std;
+
+int main(int argc, char* argv[]) {
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    const int ROOT = 0;
+
+    if (size != 2) {
+        if (rank == ROOT) {
+            cout << "This program requires exactly 2 processes (1 root and 1 worker)." << endl;
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    const int N = 1000000; // Change this to the desired array size
+
+    int* array;
+    int localSum = 0;
+    int globalSum = 0;
+
+    // Allocate memory for the array
+    if (rank == ROOT) {
+        array = new int[N];
+        srand(time(NULL));
+
+        // Initialize the array with random values
+        for (int i = 0; i < N; ++i) {
+            array[i] = rand() % 100;
+        }
+
+        // Print the original array in the root process
+        cout << "Original Array: ";
+        for (int i = 0; i < N; ++i) {
+            cout << array[i] << " ";
+        }
+        cout << endl;
+    }
+
+    // Start the timer
+    double startTime = MPI_Wtime();
+
+    // Scatter the array to all processes
+    MPI_Scatter(array, N / 2, MPI_INT, &localSum, N / 2, MPI_INT, ROOT, MPI_COMM_WORLD);
+
+    // Each process calculates its local sum
+    for (int i = 0; i < N / 2; ++i) {
+        localSum += array[i + rank * N / 2];
+    }
+
+    // Reduce local sums to obtain the global sum
+    MPI_Reduce(&localSum, &globalSum, 1, MPI_INT, MPI_SUM, ROOT, MPI_COMM_WORLD);
+
+    // Stop the timer
+    double endTime = MPI_Wtime();
+
+    // Print the result in the root process
+    if (rank == ROOT) {
+        cout << "Global Sum: " << globalSum << endl;
+        cout << "Time taken by each process: " << endTime - startTime << " seconds." << endl;
+    }
+
+    // Cleanup
+    if (rank == ROOT) {
+        delete[] array;
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}

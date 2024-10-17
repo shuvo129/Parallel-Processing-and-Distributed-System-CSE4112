@@ -1,0 +1,55 @@
+4. Write a MPI program using synchronous send. The sender process sends a word to the receiver. The second process receives the word, toggles each letter of the word and sends it back to the first process. Both processes use synchronous send operations.
+
+
+#include <iostream>
+#include <mpi.h>
+
+using namespace std;
+
+int main(int argc, char* argv[]) {
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    const int SENDER = 0;
+    const int RECEIVER = 1;
+
+    if (size != 2) {
+        if (rank == SENDER) {
+            cout << "This program requires exactly 2 processes (1 sender and 1 receiver)." << endl;
+        }
+        MPI_Finalize();
+        return 1;
+    }
+
+    if (rank == SENDER) {
+        string word = "Hello";
+        MPI_Ssend(word.data(), word.size(), MPI_CHAR, RECEIVER, 0, MPI_COMM_WORLD);
+
+        char receivedWord[word.size()];
+        MPI_Recv(receivedWord, word.size(), MPI_CHAR, RECEIVER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        cout << "Original Word: " << word << endl;
+        cout << "Received and Toggled Word: " << receivedWord << endl;
+    } else if (rank == RECEIVER) {
+        char receivedWord[256]; // Assuming a maximum word length of 256 characters
+        MPI_Recv(receivedWord, 256, MPI_CHAR, SENDER, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        // Toggle each letter of the word
+        for (int i = 0; i < strlen(receivedWord); ++i) {
+            if (isalpha(receivedWord[i])) {
+                if (islower(receivedWord[i])) {
+                    receivedWord[i] = toupper(receivedWord[i]);
+                } else {
+                    receivedWord[i] = tolower(receivedWord[i]);
+                }
+            }
+        }
+
+        MPI_Ssend(receivedWord, strlen(receivedWord) + 1, MPI_CHAR, SENDER, 0, MPI_COMM_WORLD);
+    }
+
+    MPI_Finalize();
+    return 0;
+}

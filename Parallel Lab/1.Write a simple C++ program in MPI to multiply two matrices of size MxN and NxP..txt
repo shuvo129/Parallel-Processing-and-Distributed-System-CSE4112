@@ -1,0 +1,123 @@
+1.Write a simple C++ program in MPI to multiply two matrices of size MxN and NxP. 
+
+
+#include <iostream>
+#include <mpi.h>
+
+using namespace std;
+
+const int M = 3;
+const int N = 3;
+const int P = 3;
+
+void matrix_multiply(int** A, int** B, int** C, int rows_per_process, int my_rank) {
+    for (int i = 0; i < rows_per_process; ++i) {
+        for (int j = 0; j < P; ++j) {
+            C[i][j] = 0;
+            for (int k = 0; k < N; ++k) {
+                C[i][j] += A[i][k] * B[k][j];
+            }
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    int rank, size;
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Check if the number of processes is suitable for this problem
+    if (size < 2) {
+        cout << "This program requires at least 2 processes." << endl;
+        MPI_Finalize();
+        return 1;
+    }
+
+    // Initialize matrices
+    int** A = new int*[M];
+    int** B = new int*[N];
+    int** C = new int*[M];
+
+    for (int i = 0; i < M; ++i) {
+        A[i] = new int[N];
+        C[i] = new int[P];
+    }
+
+    for (int i = 0; i < N; ++i) {
+        B[i] = new int[P];
+    }
+
+    // Initialize matrices with some values (replace with your own initialization)
+    // Note: In a real-world scenario, you would load or generate matrices A and B
+    // from external sources.
+    // For simplicity, we initialize them with sequential values for demonstration purposes.
+
+    for (int i = 0; i < M; ++i) {
+        for (int j = 0; j < N; ++j) {
+            A[i][j] = i * N + j;
+        }
+    }
+
+    for (int i = 0; i < N; ++i) {
+        for (int j = 0; j < P; ++j) {
+            B[i][j] = i * P + j;
+        }
+    }
+
+    // Distribute rows of matrix A among processes
+    int rows_per_process = M / size;
+    int** local_A = new int*[rows_per_process];
+    int** local_C = new int*[rows_per_process];
+
+    for (int i = 0; i < rows_per_process; ++i) {
+        local_A[i] = new int[N];
+        local_C[i] = new int[P];
+    }
+
+    MPI_Scatter(A[0], rows_per_process * N, MPI_INT, local_A[0], rows_per_process * N, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Broadcast matrix B to all processes
+    MPI_Bcast(B[0], N * P, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Perform local matrix multiplication
+    matrix_multiply(local_A, B, local_C, rows_per_process, rank);
+
+    // Gather results from all processes
+    MPI_Gather(local_C[0], rows_per_process * P, MPI_INT, C[0], rows_per_process * P, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Display the result in the root process
+    if (rank == 0) {
+        cout << "Matrix A:" << endl;
+        for (int i = 0; i < M; ++i) {
+            for (int j = 0; j < N; ++j) {
+                cout << A[i][j] << " ";
+            }
+            cout << endl;
+        }
+
+        cout << "\nMatrix B:" << endl;
+        for (int i = 0; i < N; ++i) {
+            for (int j = 0; j < P; ++j) {
+                cout << B[i][j] << " ";
+            }
+            cout << endl;
+        }
+
+        cout << "\nResultant Matrix C:" << endl;
+        for (int i = 0; i < M; ++i) {
+            for (int j = 0; j < P; ++j) {
+                cout << C[i][j] << " ";
+            }
+            cout << endl;
+        }
+    }
+
+    MPI_Finalize();
+
+    return 0;
+}
+
+
+
+

@@ -1,0 +1,67 @@
+7//Write a Cuda program to find out maximum common subsequence.
+
+#include <iostream>
+#include <string>
+#include <vector>
+
+const int MAX_LENGTH = 1000; // Maximum length of strings
+
+// CUDA kernel to calculate LCS
+__global__ void lcsKernel(char* str1, char* str2, int* result, int m, int n) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+    int idy = threadIdx.y + blockIdx.y * blockDim.y;
+
+    if (idx < m && idy < n) {
+        if (str1[idx] == str2[idy]) {
+            result[idx * n + idy] = ((idx > 0 && idy > 0) ? result[(idx - 1) * n + (idy - 1)] : 0) + 1;
+        } else {
+            result[idx * n + idy] = max((idx > 0) ? result[(idx - 1) * n + idy] : 0, 
+                                        (idy > 0) ? result[idx * n + (idy - 1)] : 0);
+        }
+    }
+}
+
+// Host function to calculate LCS
+int calculateLCS(char* str1, char* str2, int m, int n) {
+    int* result;
+    cudaMallocManaged(&result, m * n * sizeof(int));
+
+    dim3 threadsPerBlock(16, 16);
+    dim3 blocksPerGrid((m + threadsPerBlock.x - 1) / threadsPerBlock.x,
+                       (n + threadsPerBlock.y - 1) / threadsPerBlock.y);
+
+    lcsKernel<<<blocksPerGrid, threadsPerBlock>>>(str1, str2, result, m, n);
+    cudaDeviceSynchronize();
+
+    int lcs_length = result[(m - 1) * n + (n - 1)];
+
+    cudaFree(result);
+
+    return lcs_length;
+}
+
+int main() {
+    std::string str1 = "AGGTAB";
+    std::string str2 = "GXTXAYB";
+
+    int m = str1.length();
+    int n = str2.length();
+
+    char* dev_str1;
+    char* dev_str2;
+
+    cudaMallocManaged(&dev_str1, m * sizeof(char));
+    cudaMallocManaged(&dev_str2, n * sizeof(char));
+
+    cudaMemcpy(dev_str1, str1.c_str(), m * sizeof(char), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_str2, str2.c_str(), n * sizeof(char), cudaMemcpyHostToDevice);
+
+    int lcs_length = calculateLCS(dev_str1, dev_str2, m, n);
+
+    cudaFree(dev_str1);
+    cudaFree(dev_str2);
+
+    std::cout << "Length of Longest Common Subsequence: " << lcs_length << std::endl;
+
+    return 0;
+}

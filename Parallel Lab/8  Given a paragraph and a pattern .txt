@@ -1,0 +1,100 @@
+8 // Given a paragraph and a pattern like %x%. Now write a cuda program to find out the line number where %x% this pattern exists in the given paragraph.
+
+#include <iostream>
+#include <string>
+#include <vector>
+
+const int MAX_LINES = 1000; // Maximum number of lines in the paragraph
+const int MAX_LINE_LENGTH = 100; // Maximum length of a line
+
+// CUDA kernel to search for a pattern in each line
+__global__ void findPatternKernel(char** lines, int* lineNumbers, int* result, int patternLength) {
+    int idx = threadIdx.x + blockIdx.x * blockDim.x;
+
+    if (idx < MAX_LINES) {
+        int lineLength = strlen(lines[idx]);
+
+        for (int i = 0; i <= lineLength - patternLength; ++i) {
+            bool match = true;
+            for (int j = 0; j < patternLength; ++j) {
+                if (lines[idx][i + j] != 'x') { // Change 'x' to the desired pattern character
+                    match = false;
+                    break;
+                }
+            }
+            if (match) {
+                result[idx] = 1;
+                lineNumbers[idx] = idx + 1; // Line numbers start from 1
+                break;
+            }
+        }
+    }
+}
+
+// Host function to find the pattern in the paragraph
+std::vector<int> findPattern(char** lines, int numLines, int patternLength) {
+    int* dev_result;
+    int* dev_lineNumbers;
+
+    cudaMallocManaged(&dev_result, numLines * sizeof(int));
+    cudaMallocManaged(&dev_lineNumbers, numLines * sizeof(int));
+
+    // Initialize results to 0
+    for (int i = 0; i < numLines; ++i) {
+        dev_result[i] = 0;
+        dev_lineNumbers[i] = 0;
+    }
+
+    dim3 threadsPerBlock(256);
+    dim3 blocksPerGrid((numLines + threadsPerBlock.x - 1) / threadsPerBlock.x);
+
+    findPatternKernel<<<blocksPerGrid, threadsPerBlock>>>(lines, dev_lineNumbers, dev_result, patternLength);
+    cudaDeviceSynchronize();
+
+    // Copy results back to the host
+    std::vector<int> result(numLines);
+    for (int i = 0; i < numLines; ++i) {
+        result[i] = dev_result[i];
+    }
+
+    cudaFree(dev_result);
+    cudaFree(dev_lineNumbers);
+
+    return result;
+}
+
+int main() {
+    // Example paragraph (each line is a separate string)
+    const int numLines = 5;
+    char** dev_lines;
+    cudaMallocManaged(&dev_lines, numLines * sizeof(char*));
+
+    // Initialize the lines with example data
+    char line1[MAX_LINE_LENGTH] = "This is line 1 with the pattern x in it.";
+    char line2[MAX_LINE_LENGTH] = "Another line without the pattern.";
+    char line3[MAX_LINE_LENGTH] = "Line 3 with a pattern x.";
+    char line4[MAX_LINE_LENGTH] = "No pattern in this line.";
+    char line5[MAX_LINE_LENGTH] = "Line 5 with the pattern x.";
+
+    dev_lines[0] = line1;
+    dev_lines[1] = line2;
+    dev_lines[2] = line3;
+    dev_lines[3] = line4;
+    dev_lines[4] = line5;
+
+    int patternLength = 1; // Length of the pattern '%x%'
+    std::vector<int> result = findPattern(dev_lines, numLines, patternLength);
+
+    // Print the line numbers where the pattern exists
+    std::cout << "Lines with the pattern: ";
+    for (int i = 0; i < numLines; ++i) {
+        if (result[i] == 1) {
+            std::cout << dev_lines[i] << " (Line " << i + 1 << ") ";
+        }
+    }
+    std::cout << std::endl;
+
+    cudaFree(dev_lines);
+
+    return 0;
+}
